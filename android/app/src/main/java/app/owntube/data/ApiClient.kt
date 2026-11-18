@@ -10,6 +10,16 @@ import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
 
+private fun safeBaseUrl(raw: String): String {
+    val text = raw.trim()
+    val withScheme = when {
+        text.isEmpty() -> "http://127.0.0.1:8787"
+        text.startsWith("http://") || text.startsWith("https://") -> text
+        else -> "http://$text"
+    }
+    return withScheme.trimEnd('/') + "/"
+}
+
 class ApiClient(context: Context, private val sessionStore: SessionStore) {
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
@@ -34,7 +44,7 @@ class ApiClient(context: Context, private val sessionStore: SessionStore) {
         .build()
 
     val service: ApiService = Retrofit.Builder()
-        .baseUrl(BuildConfig.API_BASE_URL)
+        .baseUrl(safeBaseUrl(BuildConfig.API_BASE_URL))
         .client(client)
         .addConverterFactory(MoshiConverterFactory.create(moshi))
         .build()

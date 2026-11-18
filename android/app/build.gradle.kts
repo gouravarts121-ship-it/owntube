@@ -13,7 +13,18 @@ val localProps = Properties().apply {
 }
 
 fun secret(name: String, fallback: String = ""): String =
-    (System.getenv(name) ?: localProps.getProperty(name) ?: fallback)
+    listOf(System.getenv(name), localProps.getProperty(name))
+        .firstOrNull { !it.isNullOrBlank() }
+        ?: fallback
+
+fun apiBaseUrl(): String {
+    val configured = secret("API_BASE_URL", "").trim()
+    return if (configured.matches(Regex("^https?://\\S+"))) {
+        configured.trimEnd('/') + "/"
+    } else {
+        "http://127.0.0.1:8787/"
+    }
+}
 
 val hasGoogleServices = file("google-services.json").exists()
 if (hasGoogleServices) {
@@ -32,8 +43,7 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        val apiBase = secret("API_BASE_URL", "http://127.0.0.1:8787/")
-        buildConfigField("String", "API_BASE_URL", "\"$apiBase\"")
+        buildConfigField("String", "API_BASE_URL", "\"${apiBaseUrl()}\"")
         resValue("string", "facebook_app_id", secret("FB_APP_ID", "000000000000000"))
         resValue("string", "facebook_client_token", secret("FB_CLIENT_TOKEN", "00000000000000000000000000000000"))
         resValue("string", "fb_login_protocol_scheme", "fb" + secret("FB_APP_ID", "000000000000000"))
