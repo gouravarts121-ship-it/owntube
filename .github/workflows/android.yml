@@ -61,6 +61,12 @@ jobs:
             echo "APK_NAME=owntube-debug" >> "$GITHUB_ENV"
           fi
 
+      - name: Give the APK a stable name
+        working-directory: android
+        run: |
+          mv "$APK_DIR"/*.apk "$APK_DIR/$APK_NAME.apk"
+          ls -l "$APK_DIR"
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APK_NAME }}
