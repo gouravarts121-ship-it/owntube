@@ -1,0 +1,17 @@
+{
+  "name": "owntube",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-hosted ad-free video app: tag-personalized feed, no shorts, downloads.",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node server/src/index.mjs",
+    "dev": "node --watch server/src/index.mjs",
+    "test": "node --test server/test/",
+    "ingest": "node server/scripts/ingest.mjs",
+    "seed": "node server/scripts/seed.mjs"
+  }
+}

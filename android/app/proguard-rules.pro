@@ -1,0 +1,6 @@
+-keep class app.owntube.data.** { *; }
+-keepattributes Signature, *Annotation*
+-keepclassmembers class kotlin.Metadata { public <methods>; }
+-dontwarn org.slf4j.**
+-keep class com.google.firebase.** { *; }
+-keep class com.facebook.** { *; }

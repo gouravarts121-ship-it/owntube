@@ -1,0 +1,6 @@
+[
+  { "file": "bbb-720.mp4", "title": "Big Buck Bunny (sample)", "description": "Blender Foundation open movie, 10s sample. CC BY 3.0.", "tags": ["animation", "open-movie", "comedy"] },
+  { "file": "jellyfish-720.mp4", "title": "Jellyfish (sample)", "description": "Public test clip for HLS playback checks.", "tags": ["nature", "ocean", "ambient"] },
+  { "file": "termux-demo.mp4", "title": "Termux test pattern", "description": "Generated 18s H.264/AAC clip used to verify the ingest pipeline.", "tags": ["tech", "demo"] },
+  { "file": "vertical-clip.mp4", "title": "Vertical 12s clip", "description": "Portrait clip; automatically excluded as a short.", "tags": ["demo", "vertical"] }
+]

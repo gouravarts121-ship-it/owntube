@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OwnTube admin</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">▶ OwnTube</a>
+  <span class="muted">admin</span>
+</header>
+<main>
+  <section class="panel">
+    <h2>Ingest</h2>
+    <p class="muted">Files dropped in <code>content/inbox</code> (or a server-side path) are transcoded to HLS + MP4 and tagged.</p>
+    <div class="row">
+      <input id="admin-token" type="password" placeholder="ADMIN_TOKEN" />
+      <input id="ingest-dir" type="text" placeholder="directory (optional)" />
+      <button id="ingest" class="primary">Ingest folder</button>
+    </div>
+    <pre id="ingest-log" class="muted"></pre>
+  </section>
+
+  <section class="panel">
+    <h2>Videos</h2>
+    <div id="videos"></div>
+  </section>
+</main>
+<script src="/admin.js"></script>
+</body>
+</html>

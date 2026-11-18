@@ -1,0 +1,13 @@
+node_modules/
+data/
+content/inbox/*
+content/seed/*.mp4
+!content/inbox/.gitkeep
+*.log
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/keystore.jks
+android/app/google-services.json
+.DS_Store
