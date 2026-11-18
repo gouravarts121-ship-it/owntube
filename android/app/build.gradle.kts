@@ -120,7 +120,6 @@ dependencies {
     implementation("androidx.media3:media3-session:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
     implementation("androidx.media3:media3-exoplayer-workmanager:1.5.1")
-    implementation("androidx.media3:media3-cache:1.5.1")
     implementation("androidx.media3:media3-database:1.5.1")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
