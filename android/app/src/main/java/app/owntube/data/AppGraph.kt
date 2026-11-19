@@ -4,6 +4,8 @@ import android.content.Context
 import app.owntube.data.db.AppDatabase
 
 object AppGraph {
+    lateinit var context: Context
+        private set
     lateinit var api: ApiClient
         private set
     lateinit var repository: VideoRepository
@@ -13,6 +15,7 @@ object AppGraph {
 
     fun init(context: Context) {
         if (::repository.isInitialized) return
+        this.context = context.applicationContext
         sessionStore = SessionStore(context)
         api = ApiClient(context, sessionStore)
         val db = AppDatabase.build(context)

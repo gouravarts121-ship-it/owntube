@@ -34,6 +34,8 @@ data class VideoDto(
     val mp4: String = "",
     val views: Long = 0,
     val tags: List<String> = emptyList(),
+    val source: String = "local",
+    val externalUrl: String = "",
     val score: Double = 0.0,
     val progress: ProgressDto? = null,
 )
@@ -77,9 +79,21 @@ data class HistoryDto(
 
 @JsonClass(generateAdapter = false)
 data class DownloadResponse(
-    val url: String,
-    val expiresAt: String,
-    val filename: String,
+    val url: String? = null,
+    val expiresAt: String? = null,
+    val filename: String? = null,
+    val state: String? = null,
+    val pct: Int = 0,
+    val error: String? = null,
+    val ready: Boolean = false,
+)
+
+@JsonClass(generateAdapter = false)
+data class PrepareResponse(
+    val state: String = "",
+    val pct: Int = 0,
+    val error: String? = null,
+    val ready: Boolean = false,
 )
 
 @JsonClass(generateAdapter = false)

@@ -20,6 +20,14 @@ data class VideoEntity(
     val tagsCsv: String,
 )
 
+@Entity(tableName = "offline_videos")
+data class OfflineVideoEntity(
+    @PrimaryKey val videoId: String,
+    val uri: String,
+    val filename: String,
+    val createdAt: Long,
+)
+
 @Entity(tableName = "history")
 data class HistoryEntity(
     @PrimaryKey val videoId: String,

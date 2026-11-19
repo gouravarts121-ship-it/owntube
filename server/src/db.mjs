@@ -101,8 +101,33 @@ export function openDb(file = path.join(config.dataDir, "app.db")) {
       added_at TEXT NOT NULL,
       PRIMARY KEY (user_id, video_id)
     );
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS channels (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      avatar TEXT NOT NULL DEFAULT '',
+      banner TEXT NOT NULL DEFAULT '',
+      followers INTEGER NOT NULL DEFAULT 0,
+      url TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
   `);
+  ensureColumn("videos", "source", "source TEXT NOT NULL DEFAULT 'local'");
+  ensureColumn("videos", "external_id", "external_id TEXT");
+  ensureColumn("videos", "external_url", "external_url TEXT");
+  ensureColumn("videos", "channel_id", "channel_id TEXT");
+  ensureColumn("videos", "channel_name", "channel_name TEXT");
+  ensureColumn("videos", "channel_url", "channel_url TEXT");
+  ensureColumn("videos", "channel_avatar", "channel_avatar TEXT");
   return db;
+}
+
+function ensureColumn(table, name, ddl) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!columns.some((c) => c.name === name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
 }
 
 export function getDb() {
@@ -140,6 +165,22 @@ export function videoRow(videoId) {
   return row("SELECT * FROM videos WHERE id = ?", [videoId]);
 }
 
+export function getChannel(id) {
+  return row("SELECT * FROM channels WHERE id = ?", [String(id || "")]);
+}
+
+export function saveChannel(info) {
+  run(`INSERT INTO channels (id, name, avatar, banner, followers, url, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET name=excluded.name, avatar=excluded.avatar,
+      banner=excluded.banner, followers=excluded.followers, url=excluded.url,
+      updated_at=excluded.updated_at`, [
+    String(info.id || ""), String(info.name || ""), String(info.avatar || ""),
+    String(info.banner || ""), Number(info.followers || 0), String(info.url || ""),
+    new Date().toISOString(),
+  ]);
+}
+
 export function serializeVideo(v) {
   if (!v) return null;
   return {
@@ -156,5 +197,15 @@ export function serializeVideo(v) {
     mp4: v.mp4_path,
     views: v.views,
     tags: tagsFor(v.id),
+    source: v.source || "local",
+    external: (v.source || "local") !== "local",
+    playable: (v.source || "local") === "local" || Boolean(v.mp4_path),
+    prepared: (v.source || "local") !== "local" && Boolean(v.mp4_path),
+    externalId: v.external_id || null,
+    externalUrl: v.external_url || null,
+    channel: v.channel_name || "",
+    channelId: v.channel_id || "",
+    channelUrl: v.channel_url || "",
+    channelAvatar: v.channel_avatar || "",
   };
 }

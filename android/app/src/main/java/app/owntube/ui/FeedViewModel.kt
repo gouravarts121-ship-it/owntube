@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 
@@ -31,8 +32,9 @@ class FeedViewModel : ViewModel() {
     val state: StateFlow<FeedUiState> = _state.asStateFlow()
 
     private val filters = MutableStateFlow<List<String>>(emptyList())
+    private val refreshKey = MutableStateFlow(0)
 
-    val feed: Flow<PagingData<VideoDto>> = filters
+    val feed: Flow<PagingData<VideoDto>> = combine(filters, refreshKey) { tags, _ -> tags }
         .flatMapLatest { tags ->
             Pager(
                 config = PagingConfig(pageSize = 24, prefetchDistance = 6, enablePlaceholders = false),
@@ -49,6 +51,7 @@ class FeedViewModel : ViewModel() {
     }
 
     fun refresh() {
+        refreshKey.value += 1
         viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, error = null)
             runCatching { repository.tags() }

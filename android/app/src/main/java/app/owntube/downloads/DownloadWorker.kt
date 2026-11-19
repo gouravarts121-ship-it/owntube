@@ -4,6 +4,7 @@ import android.app.Notification
 import android.content.ContentValues
 import android.content.Context
 import android.content.pm.ServiceInfo
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -18,6 +19,7 @@ import app.owntube.analytics.Analytics
 import app.owntube.data.AppGraph
 import app.owntube.data.Endpoints
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import java.io.File
@@ -36,22 +38,36 @@ class DownloadWorker(
 
         setForeground(foregroundInfo(0, -1, title))
 
-        val link = AppGraph.repository.downloadLink(videoId)
-        val request = Request.Builder().url(Endpoints.absolute(link.url)).build()
+        var link = AppGraph.repository.downloadLink(videoId)
+        var waited = 0
+        while (link.url.isNullOrBlank() && waited < 240 && !isStopped) {
+            val status = AppGraph.repository.prepareState(videoId)
+            if (status.state == "error") {
+                return@withContext Result.failure(workDataOf(KEY_ERROR to (status.error ?: "prepare failed")))
+            }
+            if (status.ready) {
+                link = AppGraph.repository.downloadLink(videoId)
+                if (!link.url.isNullOrBlank()) break
+            }
+            setForeground(foregroundInfo(0, -1, title))
+            delay(1500)
+            waited += 1
+        }
+        val url = link.url ?: return@withContext Result.failure(workDataOf(KEY_ERROR to "preparation timed out"))
+        val filename = link.filename ?: "$videoId.mp4"
+        val request = Request.Builder().url(Endpoints.absolute(url)).build()
 
-        AppGraph.api.httpClient.newCall(request).execute().use { response ->
+        val localUri = AppGraph.api.httpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return@withContext Result.failure()
             val body = response.body ?: return@withContext Result.failure()
-            val total = body.contentLength()
-            body.byteStream().use { stream ->
-                saveStream(stream, total, link.filename, title)
-            }
+            body.byteStream().use { stream -> saveStream(stream, body.contentLength(), filename, title) }
         }
+        if (!localUri.isNullOrBlank()) AppGraph.repository.markOffline(videoId, localUri, filename)
         Analytics.event("video_download", mapOf("video_id" to videoId))
         Result.success()
     }
 
-    private suspend fun saveStream(stream: InputStream, total: Long, filename: String, title: String) {
+    private suspend fun saveStream(stream: InputStream, total: Long, filename: String, title: String): String? {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, filename)
@@ -61,13 +77,14 @@ class DownloadWorker(
             }
             val resolver = applicationContext.contentResolver
             val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                ?: return
+                ?: return null
             resolver.openOutputStream(uri)?.use { out ->
                 copyWithProgress(stream, out, total, title)
             }
             values.clear()
             values.put(MediaStore.Downloads.IS_PENDING, 0)
             resolver.update(uri, values, null, null)
+            return uri.toString()
         } else {
             val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "OwnTube")
             dir.mkdirs()
@@ -75,6 +92,7 @@ class DownloadWorker(
             file.outputStream().use { out ->
                 copyWithProgress(stream, out, total, title)
             }
+            return Uri.fromFile(file).toString()
         }
     }
 
@@ -113,6 +131,7 @@ class DownloadWorker(
         const val KEY_VIDEO_ID = "videoId"
         const val KEY_TITLE = "title"
         const val KEY_PROGRESS = "progress"
+        const val KEY_ERROR = "error"
         private const val NOTIFICATION_ID = 4201
         const val TAG = "download"
     }

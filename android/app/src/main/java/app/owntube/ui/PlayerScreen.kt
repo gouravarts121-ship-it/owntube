@@ -235,6 +235,30 @@ fun PlayerScreen(
                 } else {
                     CircularProgressIndicator()
                 }
+                if (PlaybackHub.preparing) {
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        CircularProgressIndicator(color = Color.White)
+                        Text(
+                            "Preparing video…",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+                PlaybackHub.playbackError?.let { message ->
+                    Text(
+                        message,
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(12.dp),
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)

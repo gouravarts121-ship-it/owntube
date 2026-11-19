@@ -35,7 +35,7 @@ the media file. Use `content/inbox/` as the drop folder.
 Admin UI: <http://127.0.0.1:8787/admin.html> with `x-admin-token`
 (default `dev-admin-token`, set `ADMIN_TOKEN` in production).
 
-Tests: `npm test` (11 API tests, no external services).
+Tests: `npm test` (24 API tests, no external services — YouTube calls are mocked).
 
 ## Features
 
@@ -55,6 +55,25 @@ Tests: `npm test` (11 API tests, no external services).
 - **Familiar video-app UI.** Home feed with tag chips, search, up-next list, and a
   mini-player that keeps playing while you browse (original Material 3 styling; no
   third-party app assets, branding or animation code).
+- **YouTube discovery and playback, fully in-app.** With `yt-dlp` installed, the
+  home feed has a "Trending on YouTube" row, Discover and Search can search
+  public videos by filters, channel pages fetch the channel's avatar, banner and
+  uploads, and any result plays inside OwnTube. Metadata, thumbnails, channel
+  data and video files are fetched by the server; nothing opens youtube.com.
+  Play starts immediately by proxying a live H.264/AAC stream through
+  `GET /api/stream/:id` (ffmpeg remux on the fly), so there is no full-file wait;
+  Download prepares and caches a local MP4 (up to `YTDLP_MAX_HEIGHT`) on this
+  device for offline playback and full seeking; saved videos appear under
+  Library → Downloads. Home has a "Load more" button that appends further
+  YouTube results when the local feed is exhausted. The player has a Comment
+  action that jumps to the comment box, and external YouTube videos show real
+  YouTube comments (author, avatar, like count and age) under "From YouTube". Optionally add a YouTube Data API key (paste it in Discover or set
+  `YOUTUBE_API_KEY`) for official metadata and region-based trending. Search
+  supports duration/sort filters, the player has autoplay and an audio-only mode,
+  and the browser can cache saved videos for offline use.
+  - Note: extracting YouTube media violates YouTube's Terms of Service and may
+    stop working if YouTube changes; use it only on your own instance at your own
+    risk. Do not use it to bypass paid access or distribute media.
 
 ## Configuration
 
@@ -67,6 +86,43 @@ Tests: `npm test` (11 API tests, no external services).
 | `DOWNLOAD_TTL_SECONDS` | `900` | Signed URL lifetime |
 | `HLS_RENDITIONS` | `720,360` | Transcode ladder (never upscales) |
 | `DATA_DIR` | `./data` | DB, media, thumbnails |
+| `YOUTUBE_API_KEY` | _(empty)_ | Official YouTube Data API v3 key; enables Discover |
+| `YOUTUBE_API_BASE` | `https://www.googleapis.com/youtube/v3` | API base (override for tests/proxies) |
+| `YOUTUBE_INNERTUBE_KEY` | public web client key | key used to fetch YouTube comments |
+| `YOUTUBE_REGION` | `US` | Region for the "Trending on YouTube" home row |
+| `YTDLP` | `yt-dlp` | Path to the `yt-dlp` executable |
+| `YTDLP_MAX_HEIGHT` | `360` | Highest video height prepared for playback/download |
+| `YTDLP_MAX_BYTES` | `200M` | Maximum prepared file size |
+| `YTDLP_TIMEOUT_SECONDS` | `300` | Preparation deadline |
+| `YTDLP_CONCURRENCY` | `1` | Simultaneous preparations |
+
+### YouTube discovery
+
+Enable the **YouTube Data API v3** in Google Cloud, create an API key, then either
+paste it into **Discover → Save key** in the web app (stored in the local database)
+or set `YOUTUBE_API_KEY` before starting the server. Environment values take
+precedence over the stored key. With a key configured, the home feed shows a
+"Trending on YouTube" row, and Discover can search public videos and import their
+metadata plus thumbnail as `external` catalog entries.
+
+Imported entries:
+
+- store `source = "youtube"`, the YouTube id and a `https://www.youtube.com/watch?v=…`
+  URL;
+- have no local media, so the server refuses to mint download links for them;
+- open on YouTube when clicked, and are hidden from the Android client's feed,
+  search, history and watch-later lists (the app only plays local media).
+
+With `yt-dlp` available, Discover accepts a pasted YouTube URL (no Data API key
+needed). Importing stores metadata, thumbnail, channel id/name and channel avatar;
+preparing fetches and muxes a local MP4 on demand. Opening a channel fetches its
+avatar, banner and upload list through `/api/youtube/channels/:id` and caches it
+for 10 minutes. The player shows download progress, and the "Offline"
+action caches the MP4 and thumbnail in the browser's Cache Storage for offline
+playback. `GET /api/media/ytdlp` reports whether the extractor is installed.
+
+OwnTube only calls the official Data API for metadata; it never downloads or
+extracts YouTube streams.
 
 Build-time Android settings: `API_BASE_URL` (default `http://127.0.0.1:8787/`,
 which matches a server running in Termux on the same phone; use
@@ -98,7 +154,7 @@ connects over your LAN.
 | `GET` | `/api/me` | tags, prefs, history |
 | `GET` | `/api/tags` | tag list with counts |
 | `GET` | `/api/feed?cursor=&limit=&tags=` | ranked, shorts excluded |
-| `GET` | `/api/search?q=` | title/description/tag search |
+| `GET` | `/api/search?q=&duration=&sort=&after=&before=` | search with filters |
 | `GET` | `/api/videos/:id` | single video |
 | `POST` | `/api/prefs` | `{tags:[{tag,position,muted}]}` |
 | `POST` | `/api/history` | `{videoId,positionMs,completed}` |
@@ -120,7 +176,20 @@ connects over your LAN.
 | `GET` | `/api/watch-later` | saved videos |
 | `POST` | `/api/watch-later` | `{videoId}` |
 | `DELETE` | `/api/watch-later/:videoId` | remove video |
-| `POST` | `/api/downloads/:id` | signed MP4 URL |
+| `POST` | `/api/downloads/:id` | signed MP4 URL (prepares external videos first) |
+| `GET` | `/api/youtube/channels/:id` | channel avatar, banner, followers and uploads |
+| `GET` | `/api/youtube/channel?url=` | same, from a channel URL or handle |
+| `GET` | `/api/discover/youtube/config` | whether an API key is configured (+ source) |
+| `POST` | `/api/discover/youtube/config` | save/clear `{apiKey}` or `{clear:true}` (auth) |
+| `GET` | `/api/discover/youtube/trending?limit=&region=` | trending videos for the home row (fallback via yt-dlp search) |
+| `POST` | `/api/discover/youtube/import-url` | `{url}` import via yt-dlp (auth) |
+| `GET` | `/api/videos/:id/comments/youtube` | real YouTube comments for an external video |
+| `GET` | `/api/media/ytdlp` | yt-dlp availability and version |
+| `GET` | `/api/stream/:id` | live proxied stream for an unprepared external video |
+| `POST` | `/api/videos/:id/prepare` | start fetching an external video (auth) |
+| `GET` | `/api/videos/:id/prepare` | poll preparation progress (auth) |
+| `GET` | `/api/discover/youtube?q=&order=&duration=` | search YouTube (API key or yt-dlp) |
+| `POST` | `/api/discover/youtube/import` | import `{videoId}` as an external entry (auth) |
 | `GET` | `/api/admin/videos` | admin: catalog |
 | `POST` | `/api/admin/ingest` | admin: ingest path/seed |
 | `DELETE` | `/api/admin/videos/:id` | admin: remove |

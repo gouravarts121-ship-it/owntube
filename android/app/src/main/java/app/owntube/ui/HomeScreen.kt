@@ -35,6 +35,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
+import com.google.accompanist.swiperefresh.SwipeRefresh
+import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import app.owntube.ui.components.VideoCard
 import app.owntube.ui.components.VideoCardSkeleton
 import app.owntube.ui.theme.YouTubeRed
@@ -69,46 +71,52 @@ fun HomeScreen(
         }
 
         val refreshing = videos.loadState.refresh is LoadState.Loading
-        if (state.loading || (refreshing && videos.itemCount == 0)) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp),
-            ) {
-                items(4) { index ->
-                    VideoCardSkeleton(modifier = Modifier.animateItem())
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 24.dp),
-            ) {
-                items(
-                    count = videos.itemCount,
-                    key = { index -> videos.peek(index)?.id ?: "ph-$index" },
-                ) { index ->
-                    videos[index]?.let { video ->
-                        VideoCard(video = video, onClick = { onOpen(video.id) }, modifier = Modifier.animateItem())
+        SwipeRefresh(
+            state = rememberSwipeRefreshState(isRefreshing = state.loading || refreshing),
+            onRefresh = { viewModel.refresh() },
+            modifier = Modifier.weight(1f),
+        ) {
+            if (state.loading || (refreshing && videos.itemCount == 0)) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp),
+                ) {
+                    items(4) { index ->
+                        VideoCardSkeleton(modifier = Modifier.animateItem())
                     }
                 }
-                if (videos.loadState.append is LoadState.Loading) {
-                    item { VideoCardSkeleton(modifier = Modifier.padding(vertical = 8.dp)) }
-                }
-                if (videos.loadState.refresh is LoadState.Error && videos.itemCount == 0) {
-                    item {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                "Can't reach the server.",
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                            Text(
-                                "Tried ${app.owntube.BuildConfig.API_BASE_URL} — start the server or rebuild with the right API_BASE_URL.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 4.dp),
-                            )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 24.dp),
+                ) {
+                    items(
+                        count = videos.itemCount,
+                        key = { index -> videos.peek(index)?.id ?: "ph-$index" },
+                    ) { index ->
+                        videos[index]?.let { video ->
+                            VideoCard(video = video, onClick = { onOpen(video.id) }, modifier = Modifier.animateItem())
+                        }
+                    }
+                    if (videos.loadState.append is LoadState.Loading) {
+                        item { VideoCardSkeleton(modifier = Modifier.padding(vertical = 8.dp)) }
+                    }
+                    if (videos.loadState.refresh is LoadState.Error && videos.itemCount == 0) {
+                        item {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    "Can't reach the server.",
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                                Text(
+                                    "Tried ${app.owntube.BuildConfig.API_BASE_URL} — start the server or rebuild with the right API_BASE_URL.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                )
+                            }
                         }
                     }
                 }

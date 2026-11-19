@@ -29,6 +29,18 @@ interface VideoDao {
     @Query("SELECT * FROM history WHERE videoId = :id")
     suspend fun history(id: String): HistoryEntity?
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun markOffline(video: OfflineVideoEntity)
+
+    @Query("SELECT uri FROM offline_videos WHERE videoId = :id")
+    suspend fun offlineUri(id: String): String?
+
+    @Query("DELETE FROM offline_videos WHERE videoId = :id")
+    suspend fun removeOffline(id: String)
+
+    @Query("SELECT * FROM offline_videos ORDER BY createdAt DESC")
+    fun observeOffline(): Flow<List<OfflineVideoEntity>>
+
     @Query("SELECT * FROM history WHERE synced = 0 ORDER BY updatedAt LIMIT 50")
     suspend fun pendingHistory(): List<HistoryEntity>
 

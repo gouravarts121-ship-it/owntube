@@ -2,6 +2,7 @@ package app.owntube.data
 
 import app.owntube.data.db.AppDatabase
 import app.owntube.data.db.HistoryEntity
+import app.owntube.data.db.OfflineVideoEntity
 import app.owntube.data.db.VideoEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -25,13 +26,14 @@ class VideoRepository(
             limit = 24,
             tags = tags.takeIf { it.isNotEmpty() }?.joinToString(","),
         )
-        db.videoDao().upsertAll(response.items.map { it.toEntity() })
-        return response
+        val items = response.items.playable()
+        db.videoDao().upsertAll(items.map { it.toEntity() })
+        return response.copy(items = items)
     }
 
     suspend fun search(query: String): List<VideoDto> {
         api.ensureSession()
-        val items = api.service.search(query).items
+        val items = api.service.search(query).items.playable()
         db.videoDao().upsertAll(items.map { it.toEntity() })
         return items
     }
@@ -74,6 +76,26 @@ class VideoRepository(
         return api.service.download(videoId)
     }
 
+    suspend fun prepareState(videoId: String): PrepareResponse {
+        api.ensureSession()
+        return api.service.prepare(videoId)
+    }
+
+    suspend fun startPrepare(videoId: String): PrepareResponse {
+        api.ensureSession()
+        return api.service.startPrepare(videoId)
+    }
+
+    suspend fun offlineUri(videoId: String): String? = db.videoDao().offlineUri(videoId)
+
+    suspend fun markOffline(videoId: String, uri: String, filename: String) {
+        db.videoDao().markOffline(
+            OfflineVideoEntity(videoId, uri, filename, System.currentTimeMillis()),
+        )
+    }
+
+    fun observeOffline() = db.videoDao().observeOffline()
+
     suspend fun social(videoId: String): SocialDto {
         api.ensureSession()
         return api.service.social(videoId)
@@ -112,8 +134,9 @@ class VideoRepository(
     suspend fun subscriptionsFeed(): FeedResponse {
         api.ensureSession()
         val response = api.service.subscriptionsFeed()
-        db.videoDao().upsertAll(response.items.map { it.toEntity() })
-        return response
+        val items = response.items.playable()
+        db.videoDao().upsertAll(items.map { it.toEntity() })
+        return response.copy(items = items)
     }
 
     suspend fun playlists(): List<PlaylistDto> {
@@ -129,8 +152,9 @@ class VideoRepository(
     suspend fun playlist(id: String): PlaylistDetail {
         api.ensureSession()
         val detail = api.service.playlist(id)
-        db.videoDao().upsertAll(detail.items.map { it.toEntity() })
-        return detail
+        val items = detail.items.playable()
+        db.videoDao().upsertAll(items.map { it.toEntity() })
+        return detail.copy(items = items)
     }
 
     suspend fun addToPlaylist(playlistId: String, videoId: String) {
@@ -145,17 +169,24 @@ class VideoRepository(
 
     suspend fun watchLater(): List<VideoDto> {
         api.ensureSession()
-        val items = api.service.watchLater().items
+        val items = api.service.watchLater().items.playable()
         db.videoDao().upsertAll(items.map { it.toEntity() })
         return items
     }
 
     suspend fun history(): List<HistoryItemDto> {
         api.ensureSession()
-        val items = api.service.historyList().items
+        val items = api.service.historyList().items.filter { item ->
+            val v = item.video ?: return@filter false
+            v.hls.isNotBlank() || v.externalUrl.isNotBlank() || v.source != "local"
+        }
         db.videoDao().upsertAll(items.mapNotNull { it.video?.toEntity() })
         return items
     }
+}
+
+private fun List<VideoDto>.playable(): List<VideoDto> = filter {
+    it.hls.isNotBlank() || it.externalUrl.isNotBlank() || it.source != "local"
 }
 
 fun VideoDto.toEntity(): VideoEntity = VideoEntity(

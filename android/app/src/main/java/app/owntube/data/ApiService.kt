@@ -40,6 +40,12 @@ interface ApiService {
     @POST("api/downloads/{id}")
     suspend fun download(@Path("id") id: String): DownloadResponse
 
+    @GET("api/videos/{id}/prepare")
+    suspend fun prepare(@Path("id") id: String): PrepareResponse
+
+    @POST("api/videos/{id}/prepare")
+    suspend fun startPrepare(@Path("id") id: String): PrepareResponse
+
     @GET("api/videos/{id}/social")
     suspend fun social(@Path("id") id: String): SocialDto
 

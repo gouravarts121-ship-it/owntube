@@ -4,6 +4,7 @@ content/inbox/*
 content/seed/*.mp4
 !content/inbox/.gitkeep
 *.log
+*.apk
 android/.gradle/
 android/build/
 android/app/build/

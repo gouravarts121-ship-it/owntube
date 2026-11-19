@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import path from "node:path";
@@ -9,6 +10,12 @@ import {
   issueUserToken, newUserId, requireAdmin, requireUser, signDownload, verifyDownload,
 } from "./auth.mjs";
 import { ingestDirectory, ingestFile } from "./ingest.mjs";
+import {
+  channelInfo, clearYouTubeApiKey, importYouTubeVideo, searchYouTube, setYouTubeApiKey,
+  trendingYouTube, youtubeConfigured, youtubeIdFromInput, youtubeKeySource,
+} from "./youtube.mjs";
+import { prepareState, preparedFile, startPrepare, streamUrls, ytdlpStatus } from "./ytdlp.mjs";
+import { youtubeComments } from "./comments.mjs";
 
 const CONTENT_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -25,6 +32,7 @@ const CONTENT_TYPES = {
   ".m3u8": "application/vnd.apple.mpegurl",
   ".ts": "video/mp2t",
   ".mp4": "video/mp4",
+  ".apk": "application/vnd.android.package-archive",
 };
 
 const json = (res, status, body, headers = {}) => {
@@ -66,10 +74,12 @@ async function sendFile(req, res, file, { download = null } = {}) {
   if (!st.isFile()) return json(res, 404, { error: "not found" });
 
   const type = CONTENT_TYPES[path.extname(file).toLowerCase()] || "application/octet-stream";
+  const ext = path.extname(file).toLowerCase();
+  const shell = [".html", ".js", ".css", ".webmanifest"].includes(ext);
   const headers = {
     "content-type": type,
     "accept-ranges": "bytes",
-    "cache-control": path.extname(file) === ".m3u8" ? "no-store" : "public, max-age=3600",
+    "cache-control": ext === ".m3u8" ? "no-store" : shell ? "no-cache" : "public, max-age=3600",
   };
   if (download) headers["content-disposition"] = `attachment; filename="${download}"`;
 
@@ -163,7 +173,12 @@ export function createServer() {
 
       if (pathname === "/api/search" && method === "GET") {
         return json(res, 200, {
-          items: search(url.searchParams.get("q") || "", requireUser(req)),
+          items: search(url.searchParams.get("q") || "", requireUser(req), {
+            sort: url.searchParams.get("sort") || "",
+            duration: url.searchParams.get("duration") || "",
+            after: url.searchParams.get("after") || "",
+            before: url.searchParams.get("before") || "",
+          }),
         });
       }
 
@@ -203,6 +218,25 @@ export function createServer() {
           ...serializeVideo(video),
           progress: progress ? { positionMs: progress.position_ms, completed: Boolean(progress.completed) } : null,
         });
+      }
+
+      const prepareMatch = /^\/api\/videos\/([^/]+)\/prepare$/.exec(pathname);
+      if (prepareMatch && (method === "GET" || method === "POST")) {
+        const userId = requireUser(req);
+        if (!userId) return json(res, 401, { error: "unauthorized" });
+        const id = prepareMatch[1];
+        if (method === "POST") {
+          try {
+            startPrepare(id);
+          } catch (err) {
+            return json(res, err.status || 500, { error: err.message });
+          }
+        }
+        return json(res, 200, { ...prepareState(id) });
+      }
+
+      if (pathname === "/api/media/ytdlp" && method === "GET") {
+        return json(res, 200, await ytdlpStatus());
       }
 
       if (pathname === "/api/history" && method === "POST") {
@@ -292,6 +326,19 @@ export function createServer() {
           dislikes: Number(counts?.dislikes || 0),
           myReaction: value,
         });
+      }
+
+      const ytCommentsMatch = /^\/api\/videos\/([^/]+)\/comments\/youtube$/.exec(pathname);
+      if (ytCommentsMatch && method === "GET") {
+        const video = row("SELECT * FROM videos WHERE id = ?", [ytCommentsMatch[1]]);
+        if (!video) return json(res, 404, { error: "not found" });
+        if ((video.source || "local") === "local") return json(res, 200, { items: [] });
+        try {
+          const items = await youtubeComments(video.external_id || ytCommentsMatch[1]);
+          return json(res, 200, { items });
+        } catch (err) {
+          return json(res, err.status || 502, { error: err.message });
+        }
       }
 
       const commentsMatch = /^\/api\/videos\/([^/]+)\/comments$/.exec(pathname);
@@ -553,6 +600,14 @@ export function createServer() {
         if (!userId) return json(res, 401, { error: "unauthorized" });
         const video = row("SELECT * FROM videos WHERE id = ? AND is_short = 0", [downloadMatch[1]]);
         if (!video) return json(res, 404, { error: "not found" });
+        if ((video.source || "local") !== "local" && !preparedFile(video)) {
+          try {
+            startPrepare(video.id);
+          } catch (err) {
+            return json(res, err.status || 500, { error: err.message });
+          }
+          return json(res, 202, { state: "preparing", ...prepareState(video.id) });
+        }
         const expiresAt = new Date(Date.now() + config.downloadTtlSeconds * 1000).toISOString();
         run("INSERT INTO downloads (id, user_id, video_id, created_at, expires_at) VALUES (?, ?, ?, ?, ?)", [
           randomUUID(), userId, video.id, new Date().toISOString(), expiresAt,
@@ -567,6 +622,51 @@ export function createServer() {
         });
       }
 
+      if (pathname.startsWith("/api/stream/") && method === "GET") {
+        const id = pathname.slice("/api/stream/".length);
+        const video = row("SELECT * FROM videos WHERE id = ?", [id]);
+        if (!video || (video.source || "local") === "local") return json(res, 404, { error: "not found" });
+        if (preparedFile(video)) {
+          res.writeHead(302, { location: video.mp4_path || `/media/mp4/${id}.mp4` });
+          res.end();
+          return;
+        }
+        let urls = [];
+        try {
+          urls = await streamUrls(video.external_id);
+        } catch (err) {
+          return json(res, err.status || 502, { error: err.message });
+        }
+        if (urls.length === 1) {
+          res.writeHead(302, { location: urls[0] });
+          res.end();
+          return;
+        }
+        if (urls.length >= 2) {
+          res.writeHead(200, {
+            "content-type": "video/mp4",
+            "cache-control": "no-store",
+            "accept-ranges": "none",
+          });
+          const child = spawn(config.ffmpeg, [
+            "-hide_banner", "-loglevel", "error",
+            "-i", urls[0], "-i", urls[1],
+            "-map", "0:v:0", "-map", "1:a:0", "-c", "copy",
+            "-movflags", "frag_keyframe+empty_moov", "-f", "mp4", "pipe:1",
+          ], { stdio: ["ignore", "pipe", "pipe"] });
+          let closed = false;
+          const stop = () => { if (!closed) { closed = true; child.kill("SIGKILL"); } };
+          req.on("close", stop);
+          res.on("close", stop);
+          child.stdout.pipe(res);
+          child.stderr.resume();
+          child.on("error", () => { if (!closed) { closed = true; res.destroy(); } });
+          child.on("close", () => { if (!closed) res.end(); });
+          return;
+        }
+        return json(res, 502, { error: "no playable stream found" });
+      }
+
       if (pathname.startsWith("/media/download/")) {
         const id = pathname.slice("/media/download/".length);
         const exp = url.searchParams.get("exp") || "";
@@ -577,14 +677,123 @@ export function createServer() {
         if (!row("SELECT id FROM downloads WHERE user_id = ? AND video_id = ?", [user, id])) {
           return json(res, 403, { error: "not issued" });
         }
-        const file = path.join(config.mediaDir, "mp4", `${id}.mp4`);
+        const video = row("SELECT * FROM videos WHERE id = ?", [id]);
+        const relative = video?.mp4_path ? video.mp4_path.replace(/^\/media\//, "") : `mp4/${id}.mp4`;
+        const file = safeJoin(config.mediaDir, relative);
+        if (!file) return json(res, 403, { error: "forbidden" });
         return sendFile(req, res, file, { download: `${id}.mp4` });
       }
 
       if (pathname.startsWith("/media/")) {
-        const file = safeJoin(config.mediaDir, pathname.slice("/media/".length));
+        const relative = pathname.slice("/media/".length);
+        let file = safeJoin(config.mediaDir, relative);
+        const exists = async (target) => Boolean(target) && await stat(target).then(() => true, () => false);
+        const master = /^hls\/([^/]+)\/master\.m3u8$/.exec(relative);
+        if (master && !(await exists(file))) {
+          const variant = safeJoin(config.mediaDir, `hls/${master[1]}/v0/index.m3u8`);
+          if (await exists(variant)) {
+            res.writeHead(200, {
+              "content-type": "application/vnd.apple.mpegurl; charset=utf-8",
+              "cache-control": "no-store",
+            });
+            res.end("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=792000,RESOLUTION=640x360\nv0/index.m3u8\n");
+            return;
+          }
+        }
         if (!file) return json(res, 403, { error: "forbidden" });
         return sendFile(req, res, file);
+      }
+
+      if (pathname === "/api/discover/youtube/config") {
+        if (method === "GET") {
+          return json(res, 200, { configured: youtubeConfigured(), source: youtubeKeySource() });
+        }
+        if (method === "POST") {
+          const userId = requireUser(req);
+          if (!userId) return json(res, 401, { error: "unauthorized" });
+          const body = await readBody(req);
+          try {
+            if (body.clear === true) clearYouTubeApiKey();
+            else setYouTubeApiKey(body.apiKey || body.key || "");
+          } catch (err) {
+            return json(res, err.status || 500, { error: err.message });
+          }
+          return json(res, 200, { configured: youtubeConfigured(), source: youtubeKeySource() });
+        }
+      }
+
+      if (pathname.startsWith("/api/youtube/channels/") && method === "GET") {
+        const input = decodeURIComponent(pathname.slice("/api/youtube/channels/".length));
+        if (!input) return json(res, 400, { error: "channel id or URL required" });
+        try {
+          return json(res, 200, await channelInfo(input, {
+            force: url.searchParams.get("refresh") === "1",
+          }));
+        } catch (err) {
+          return json(res, err.status || 502, { error: err.message });
+        }
+      }
+
+      if (pathname === "/api/youtube/channel" && method === "GET") {
+        const input = url.searchParams.get("url") || "";
+        if (!input) return json(res, 400, { error: "url required" });
+        try {
+          return json(res, 200, await channelInfo(input, {
+            force: url.searchParams.get("refresh") === "1",
+          }));
+        } catch (err) {
+          return json(res, err.status || 502, { error: err.message });
+        }
+      }
+
+      if (pathname === "/api/discover/youtube/trending" && method === "GET") {
+        if (!youtubeConfigured() && !(await ytdlpStatus()).available) {
+          return json(res, 503, { error: "neither a YouTube API key nor yt-dlp is available", configured: false });
+        }
+        const result = await trendingYouTube({
+          maxResults: Number(url.searchParams.get("limit") || 12),
+          regionCode: url.searchParams.get("region") || undefined,
+        });
+        return json(res, 200, { ...result, configured: true });
+      }
+
+      if (pathname === "/api/discover/youtube" && method === "GET") {
+        if (!youtubeConfigured() && !(await ytdlpStatus()).available) {
+          return json(res, 503, { error: "neither a YouTube API key nor yt-dlp is available", configured: false });
+        }
+        const result = await searchYouTube({
+          q: url.searchParams.get("q") || "",
+          maxResults: Number(url.searchParams.get("limit") || 12),
+          pageToken: url.searchParams.get("pageToken") || "",
+          order: url.searchParams.get("order") || "",
+          duration: url.searchParams.get("duration") || "",
+          offset: Number(url.searchParams.get("offset") || 0),
+          after: url.searchParams.get("after") || "",
+          before: url.searchParams.get("before") || "",
+        });
+        return json(res, 200, { ...result, configured: true });
+      }
+
+      if (pathname === "/api/discover/youtube/import-url" && method === "POST") {
+        const userId = requireUser(req);
+        if (!userId) return json(res, 401, { error: "unauthorized" });
+        const body = await readBody(req);
+        const youtubeId = youtubeIdFromInput(body.url || body.videoId || "");
+        if (!youtubeId) return json(res, 400, { error: "paste a valid YouTube URL or id" });
+        const video = await importYouTubeVideo(youtubeId);
+        return json(res, 201, { video });
+      }
+
+      if (pathname === "/api/discover/youtube/import" && method === "POST") {
+        const userId = requireUser(req);
+        if (!userId) return json(res, 401, { error: "unauthorized" });
+        const body = await readBody(req);
+        const youtubeId = youtubeIdFromInput(
+          body.videoId || body.youtubeId || body.id || body.url || "",
+        );
+        if (!youtubeId) return json(res, 400, { error: "a valid YouTube video id or URL is required" });
+        const video = await importYouTubeVideo(youtubeId);
+        return json(res, 201, { video });
       }
 
       if (pathname.startsWith("/api/admin/")) {

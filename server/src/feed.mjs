@@ -90,17 +90,35 @@ export function feed({ userId = null, tags = [], cursor = 0, limit = 20 } = {}) 
   };
 }
 
-export function search(query, userId = null) {
+export function search(query, userId = null, options = {}) {
   const q = String(query || "").trim().toLowerCase();
   if (!q) return [];
+  const like = `%${q}%`;
+  const params = [like, like, like];
+  const clauses = ["v.is_short = 0", "(lower(v.title) LIKE ? OR lower(v.description) LIKE ? OR t.tag LIKE ?)"];
+
+  const duration = String(options.duration || "");
+  if (duration === "short") clauses.push("v.duration_ms > 0 AND v.duration_ms < 240000");
+  else if (duration === "medium") clauses.push("v.duration_ms >= 240000 AND v.duration_ms <= 1200000");
+  else if (duration === "long") clauses.push("v.duration_ms > 1200000");
+
+  if (options.after) { clauses.push("v.published_at >= ?"); params.push(String(options.after)); }
+  if (options.before) { clauses.push("v.published_at <= ?"); params.push(String(options.before)); }
+
+  let order = "v.published_at DESC";
+  if (options.sort === "oldest") order = "v.published_at ASC";
+  else if (options.sort === "views") order = "v.views DESC, v.published_at DESC";
+  else if (options.sort === "relevance") {
+    order = "CASE WHEN lower(v.title) LIKE ? THEN 0 WHEN lower(v.description) LIKE ? THEN 1 ELSE 2 END, v.published_at DESC";
+    params.push(like, like);
+  }
+
   const rows = all(`
     SELECT DISTINCT v.* FROM videos v
     LEFT JOIN video_tags t ON t.video_id = v.id
-    WHERE v.is_short = 0 AND (
-      lower(v.title) LIKE ? OR lower(v.description) LIKE ? OR t.tag LIKE ?
-    )
-    ORDER BY v.published_at DESC
+    WHERE ${clauses.join(" AND ")}
+    ORDER BY ${order}
     LIMIT 50
-  `, [`%${q}%`, `%${q}%`, `%${q}%`]);
+  `, params);
   return rows.map((v) => ({ ...serializeVideo(v), score: 0 }));
 }
