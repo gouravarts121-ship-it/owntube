@@ -50,7 +50,7 @@ Tests: `npm test` (24 API tests, no external services — YouTube calls are mock
 - **Analytics only, no ads.** Firebase Analytics/Crashlytics/Messaging/Remote Config
   and the Facebook SDK are wired when configs are present; there is no ad SDK, no
   Mintegral/HMS ads, no tracking pixel beyond those SDKs.
-- **Picture-in-picture, background audio, playback speed and quality selection** in the
+- **Picture-in-picture, background audio, audio-only mode and autoplay** in the
   Android client (Media3 session service).
 - **Familiar video-app UI.** Home feed with tag chips, search, up-next list, and a
   mini-player that keeps playing while you browse (original Material 3 styling; no
@@ -64,8 +64,9 @@ Tests: `npm test` (24 API tests, no external services — YouTube calls are mock
   `GET /api/stream/:id` (ffmpeg remux on the fly), so there is no full-file wait;
   Download prepares and caches a local MP4 (up to `YTDLP_MAX_HEIGHT`) on this
   device for offline playback and full seeking; saved videos appear under
-  Library → Downloads. Home has a "Load more" button that appends further
-  YouTube results when the local feed is exhausted. The player has a Comment
+  Library → Downloads. The web home has a "Load more" button that appends further
+  YouTube results; the Android home has a "Trending on YouTube" row and a
+  "Discover" entry. The player has a Comment
   action that jumps to the comment box, and external YouTube videos show real
   YouTube comments (author, avatar, like count and age) under "From YouTube". Optionally add a YouTube Data API key (paste it in Discover or set
   `YOUTUBE_API_KEY`) for official metadata and region-based trending. Search
@@ -110,9 +111,10 @@ Imported entries:
 
 - store `source = "youtube"`, the YouTube id and a `https://www.youtube.com/watch?v=…`
   URL;
-- have no local media, so the server refuses to mint download links for them;
-- open on YouTube when clicked, and are hidden from the Android client's feed,
-  search, history and watch-later lists (the app only plays local media).
+- stream through the server's live proxy and are downloaded only when you tap
+  Download (the server prepares a local MP4 first);
+- play inside OwnTube in both the web and Android clients (they are no longer
+  hidden from the Android feed, search, history or watch-later lists).
 
 With `yt-dlp` available, Discover accepts a pasted YouTube URL (no Data API key
 needed). Importing stores metadata, thumbnail, channel id/name and channel avatar;

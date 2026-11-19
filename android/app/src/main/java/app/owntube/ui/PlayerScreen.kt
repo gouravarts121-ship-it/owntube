@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -70,6 +71,7 @@ import app.owntube.data.CommentDto
 import app.owntube.data.PlaylistDto
 import app.owntube.data.SocialDto
 import app.owntube.data.VideoDto
+import app.owntube.data.YoutubeCommentDto
 import app.owntube.downloads.DownloadsRepository
 import app.owntube.ui.components.ChannelAvatar
 import app.owntube.ui.components.CompactVideoCard
@@ -92,12 +94,14 @@ fun PlayerScreen(
     var expanded by remember(videoId) { mutableStateOf(false) }
     var social by remember(videoId) { mutableStateOf<SocialDto?>(null) }
     var comments by remember(videoId) { mutableStateOf<List<CommentDto>>(emptyList()) }
+    var ytComments by remember(videoId) { mutableStateOf<List<YoutubeCommentDto>>(emptyList()) }
     var commentText by remember(videoId) { mutableStateOf("") }
     var sending by remember(videoId) { mutableStateOf(false) }
     var sheetOpen by remember(videoId) { mutableStateOf(false) }
     var playlists by remember(videoId) { mutableStateOf<List<PlaylistDto>>(emptyList()) }
     var newPlaylistName by remember(videoId) { mutableStateOf("") }
     val playerController = PlaybackHub.controller
+    val listState = rememberLazyListState()
 
     LaunchedEffect(videoId) {
         runCatching { repository.video(videoId) }
@@ -110,6 +114,7 @@ fun PlayerScreen(
                     }
                 runCatching { repository.social(loaded.id) }.onSuccess { social = it }
                 runCatching { repository.comments(loaded.id) }.onSuccess { comments = it.items }
+                runCatching { repository.youtubeComments(loaded.id) }.onSuccess { ytComments = it }
             }
             .onFailure { error = it.message }
     }
@@ -123,6 +128,12 @@ fun PlayerScreen(
             val resume = runCatching { repository.localPosition(loaded.id) }.getOrNull() ?: 0L
             PlaybackHub.play(loaded, resume)
         }
+    }
+
+    LaunchedEffect(PlaybackHub.endedEvent) {
+        if (PlaybackHub.endedEvent == 0L || !PlaybackHub.autoplay) return@LaunchedEffect
+        val next = related.firstOrNull { it.id != video?.id } ?: return@LaunchedEffect
+        onOpenVideo(next.id)
     }
 
     LaunchedEffect(sheetOpen) {
@@ -209,6 +220,7 @@ fun PlayerScreen(
     }
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
@@ -333,6 +345,16 @@ fun PlayerScreen(
                     selected = false,
                     onClick = { share() },
                 )
+                ActionPill(
+                    label = "Comments",
+                    icon = { tint -> Icon(Icons.Filled.Comment, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp)) },
+                    selected = false,
+                    onClick = {
+                        scope.launch {
+                            runCatching { listState.animateScrollToItem(6) }
+                        }
+                    },
+                )
             }
         }
 
@@ -359,6 +381,18 @@ fun PlayerScreen(
                         val v = video
                         if (v != null) (context as? MainActivity)?.enterPip(v.width, v.height)
                     },
+                )
+                ActionPill(
+                    label = "Audio",
+                    icon = { tint -> Icon(Icons.Filled.Audiotrack, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp)) },
+                    selected = PlaybackHub.audioOnly,
+                    onClick = { PlaybackHub.setAudioOnly(!PlaybackHub.audioOnly) },
+                )
+                ActionPill(
+                    label = "Autoplay",
+                    icon = { tint -> Icon(Icons.Filled.Repeat, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp)) },
+                    selected = PlaybackHub.autoplay,
+                    onClick = { PlaybackHub.autoplay = !PlaybackHub.autoplay },
                 )
             }
         }
@@ -457,6 +491,34 @@ fun PlayerScreen(
 
         items(comments, key = { it.id }) { comment ->
             CommentRow(comment = comment, onLike = { toggleCommentLike(comment) })
+        }
+
+        if (ytComments.isNotEmpty()) {
+            item {
+                Text(
+                    "From YouTube",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            items(ytComments, key = { it.id }) { comment ->
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                ) {
+                    Text(
+                        "${comment.author}  •  ${comment.time}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(comment.body, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        "♥ ${comment.likes}    ↩ ${comment.replies}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
 
         item {

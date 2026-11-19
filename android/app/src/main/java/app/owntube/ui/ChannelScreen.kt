@@ -47,6 +47,11 @@ fun ChannelScreen(
     onBack: () -> Unit,
     onOpen: (String) -> Unit,
 ) {
+    if (tag.startsWith("UC") || tag.startsWith("@") || tag.contains("youtube.com", ignoreCase = true)) {
+        YouTubeChannelScreen(input = tag, onBack = onBack, onOpen = onOpen)
+        return
+    }
+
     val repository = AppGraph.repository
     val scope = rememberCoroutineScope()
     var videos by remember(tag) { mutableStateOf<List<VideoDto>>(emptyList()) }

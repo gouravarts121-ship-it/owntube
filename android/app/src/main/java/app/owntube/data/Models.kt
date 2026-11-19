@@ -108,6 +108,64 @@ data class MeResponse(
 data class OkResponse(val ok: Boolean = true)
 
 @JsonClass(generateAdapter = false)
+data class RemoteVideoDto(
+    val youtubeId: String = "",
+    val title: String = "",
+    val channel: String = "",
+    val channelId: String = "",
+    val channelUrl: String = "",
+    val durationMs: Long = 0,
+    val views: Long = 0,
+    val thumb: String = "",
+    val url: String = "",
+    val imported: Boolean = false,
+)
+
+@JsonClass(generateAdapter = false)
+data class RemoteFeedResponse(
+    val items: List<RemoteVideoDto> = emptyList(),
+    val nextPageToken: String = "",
+    val configured: Boolean = false,
+)
+
+@JsonClass(generateAdapter = false)
+data class YoutubeConfigResponse(val configured: Boolean = false, val source: String? = null)
+
+@JsonClass(generateAdapter = false)
+data class ImportResponse(val video: VideoDto)
+
+@JsonClass(generateAdapter = false)
+data class ChannelInfoDto(
+    val id: String = "",
+    val name: String = "",
+    val avatar: String = "",
+    val banner: String = "",
+    val followers: Long = 0,
+    val url: String = "",
+    val videos: List<RemoteVideoDto> = emptyList(),
+)
+
+@JsonClass(generateAdapter = false)
+data class YoutubeCommentDto(
+    val id: String = "",
+    val author: String = "",
+    val avatar: String = "",
+    val body: String = "",
+    val time: String = "",
+    val likes: String = "",
+    val replies: String = "",
+)
+
+@JsonClass(generateAdapter = false)
+data class YoutubeCommentsResponse(val items: List<YoutubeCommentDto> = emptyList())
+
+@JsonClass(generateAdapter = false)
+data class ApiKeyBody(val apiKey: String)
+
+@JsonClass(generateAdapter = false)
+data class ImportUrlBody(val url: String)
+
+@JsonClass(generateAdapter = false)
 data class ChannelDto(
     val tag: String = "",
     val name: String = "",

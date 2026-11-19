@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -43,6 +44,13 @@ object PlaybackHub {
     var playbackError by mutableStateOf<String?>(null)
         private set
 
+    var autoplay by mutableStateOf(true)
+
+    var audioOnly by mutableStateOf(false)
+
+    var endedEvent by mutableStateOf(0L)
+        private set
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var ticker: Job? = null
     private var listener: Player.Listener? = null
@@ -63,6 +71,7 @@ object PlaybackHub {
                 durationMs = mediaController.duration.coerceAtLeast(0)
                 if (state == Player.STATE_ENDED) {
                     savePosition(completed = true)
+                    endedEvent += 1
                 }
             }
 
@@ -214,6 +223,14 @@ object PlaybackHub {
     fun togglePlayPause() {
         val c = controller ?: return
         if (c.isPlaying) c.pause() else c.play()
+    }
+
+    fun setAudioOnly(enabled: Boolean) {
+        audioOnly = enabled
+        val c = controller ?: return
+        c.trackSelectionParameters = c.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, enabled)
+            .build()
     }
 
     fun seekTo(ms: Long) {

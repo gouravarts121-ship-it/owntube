@@ -104,12 +104,24 @@ fun AppNav() {
                 HomeScreen(
                     onOpen = { id -> navController.navigate("player/$id") },
                     onSearch = { navController.navigate("search") },
+                    onDiscover = { navController.navigate("discover") { launchSingleTop = true } },
                 )
             }
             composable("search") {
                 SearchScreen(
                     onBack = { navController.popBackStack() },
                     onOpen = { id -> navController.navigate("player/$id") { launchSingleTop = true } },
+                )
+            }
+            composable("discover") {
+                DiscoverScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpen = { id -> navController.navigate("player/$id") { launchSingleTop = true } },
+                    onOpenChannel = { input ->
+                        navController.navigate("channel/${java.net.URLEncoder.encode(input, "UTF-8")}") {
+                            launchSingleTop = true
+                        }
+                    },
                 )
             }
             composable("subscriptions") {

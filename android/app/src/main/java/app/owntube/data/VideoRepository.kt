@@ -183,6 +183,48 @@ class VideoRepository(
         db.videoDao().upsertAll(items.mapNotNull { it.video?.toEntity() })
         return items
     }
+
+    suspend fun youtubeConfig(): YoutubeConfigResponse {
+        api.ensureSession()
+        return api.service.youtubeConfig()
+    }
+
+    suspend fun saveYoutubeKey(apiKey: String): YoutubeConfigResponse {
+        api.ensureSession()
+        return api.service.saveYoutubeKey(ApiKeyBody(apiKey))
+    }
+
+    suspend fun youtubeTrending(): RemoteFeedResponse {
+        api.ensureSession()
+        return api.service.youtubeTrending()
+    }
+
+    suspend fun youtubeSearch(
+        query: String,
+        duration: String? = null,
+        order: String? = null,
+        offset: Int = 0,
+    ): RemoteFeedResponse {
+        api.ensureSession()
+        return api.service.youtubeSearch(query, limit = 12, offset = offset, duration = duration, order = order)
+    }
+
+    suspend fun importYoutube(url: String): VideoDto {
+        api.ensureSession()
+        val video = api.service.importYoutubeUrl(ImportUrlBody(url)).video
+        db.videoDao().upsert(video.toEntity())
+        return video
+    }
+
+    suspend fun youtubeChannel(input: String): ChannelInfoDto {
+        api.ensureSession()
+        return api.service.youtubeChannel(input)
+    }
+
+    suspend fun youtubeComments(videoId: String): List<YoutubeCommentDto> {
+        api.ensureSession()
+        return api.service.youtubeComments(videoId).items
+    }
 }
 
 private fun List<VideoDto>.playable(): List<VideoDto> = filter {

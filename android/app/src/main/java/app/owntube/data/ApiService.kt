@@ -99,6 +99,33 @@ interface ApiService {
 
     @GET("api/history")
     suspend fun historyList(): HistoryListResponse
+
+    @GET("api/discover/youtube/config")
+    suspend fun youtubeConfig(): YoutubeConfigResponse
+
+    @POST("api/discover/youtube/config")
+    suspend fun saveYoutubeKey(@Body body: ApiKeyBody): YoutubeConfigResponse
+
+    @GET("api/discover/youtube/trending")
+    suspend fun youtubeTrending(@Query("limit") limit: Int = 12): RemoteFeedResponse
+
+    @GET("api/discover/youtube")
+    suspend fun youtubeSearch(
+        @Query("q") query: String,
+        @Query("limit") limit: Int = 12,
+        @Query("offset") offset: Int = 0,
+        @Query("duration") duration: String? = null,
+        @Query("order") order: String? = null,
+    ): RemoteFeedResponse
+
+    @POST("api/discover/youtube/import-url")
+    suspend fun importYoutubeUrl(@Body body: ImportUrlBody): ImportResponse
+
+    @GET("api/youtube/channels/{input}")
+    suspend fun youtubeChannel(@Path("input", encoded = true) input: String): ChannelInfoDto
+
+    @GET("api/videos/{id}/comments/youtube")
+    suspend fun youtubeComments(@Path("id") id: String): YoutubeCommentsResponse
 }
 
 object Endpoints {
