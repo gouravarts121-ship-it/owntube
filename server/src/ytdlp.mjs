@@ -53,8 +53,11 @@ function outputFile(videoId) {
 function runProcess(args, { timeoutMs = config.ytdlpTimeoutMs, onLine } = {}) {
   return new Promise((resolve, reject) => {
     let child;
+    const cookieArgs = config.ytdlpCookies && existsSync(config.ytdlpCookies)
+      ? ["--cookies", config.ytdlpCookies]
+      : [];
     try {
-      child = spawn(config.ytdlp, args, { stdio: ["ignore", "pipe", "pipe"] });
+      child = spawn(config.ytdlp, [...cookieArgs, ...args], { stdio: ["ignore", "pipe", "pipe"] });
     } catch (err) {
       reject(new YtdlpError(`could not start ${config.ytdlp}: ${err.message}`, 503));
       return;

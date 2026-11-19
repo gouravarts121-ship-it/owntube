@@ -556,6 +556,13 @@ a { color: inherit; }
   align-items: center; justify-content: center; gap: 8px; padding: 16px; text-align: center;
 }
 .prepare-text { font-size: 14px; }
+.prepare-error {
+  max-width: 420px;
+  color: var(--error);
+  font-size: 12px;
+  line-height: 1.4;
+  word-break: break-word;
+}
 .prepare-pct { color: var(--muted); font-size: 12px; }
 .prepare-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 12px 16px; }
 .player-surface.audio-only {

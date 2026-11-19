@@ -91,6 +91,7 @@ Tests: `npm test` (24 API tests, no external services — YouTube calls are mock
 | `YOUTUBE_INNERTUBE_KEY` | public web client key | key used to fetch YouTube comments |
 | `YOUTUBE_REGION` | `US` | Region for the "Trending on YouTube" home row |
 | `YTDLP` | `yt-dlp` | Path to the `yt-dlp` executable |
+| `YTDLP_COOKIES` | _(empty)_ | Netscape cookies file for `yt-dlp`; set this when YouTube blocks streaming with "Sign in to confirm you're not a bot" |
 | `YTDLP_MAX_HEIGHT` | `360` | Highest video height prepared for playback/download |
 | `YTDLP_MAX_BYTES` | `200M` | Maximum prepared file size |
 | `YTDLP_TIMEOUT_SECONDS` | `300` | Preparation deadline |

@@ -180,6 +180,7 @@ media.style.background = "#000";
 mediaHost.append(media);
 
 let hls = null;
+let mediaErrorHandler = null;
 let currentVideo = null;
 let lastHistorySave = 0;
 
@@ -254,6 +255,10 @@ function loadVideo(video, { autoplay = true } = {}) {
     hls.destroy();
     hls = null;
   }
+  if (mediaErrorHandler) {
+    media.removeEventListener("error", mediaErrorHandler);
+    mediaErrorHandler = null;
+  }
   media.pause();
   media.removeAttribute("src");
   media.load();
@@ -268,8 +273,33 @@ function loadVideo(video, { autoplay = true } = {}) {
   media.addEventListener("loadedmetadata", onMeta);
 
   const source = video.hls || video.mp4;
+  let fallbackDone = false;
+  const useFallback = () => {
+    if (fallbackDone || !video.mp4 || video.mp4 === source) {
+      toast("This video could not be played. Try again or open another video.");
+      return;
+    }
+    fallbackDone = true;
+    if (hls) {
+      hls.destroy();
+      hls = null;
+    }
+    if (mediaErrorHandler) {
+      media.removeEventListener("error", mediaErrorHandler);
+      mediaErrorHandler = null;
+    }
+    media.src = video.mp4;
+    media.load();
+    media.play().catch(() => {});
+  };
+  const onError = () => useFallback();
+  mediaErrorHandler = onError;
+  media.addEventListener("error", onError);
   if (window.Hls && window.Hls.isSupported() && /\.m3u8($|\?)/.test(source)) {
     hls = new window.Hls({ maxBufferLength: 30 });
+    hls.on(window.Hls.Events.ERROR, (_event, data) => {
+      if (data && data.fatal) useFallback();
+    });
     hls.loadSource(source);
     hls.attachMedia(media);
   } else {
@@ -283,6 +313,10 @@ function stopPlayback() {
   media.pause();
   media.removeAttribute("src");
   media.load();
+  if (mediaErrorHandler) {
+    media.removeEventListener("error", mediaErrorHandler);
+    mediaErrorHandler = null;
+  }
   if (hls) {
     hls.destroy();
     hls = null;
@@ -1388,9 +1422,13 @@ function showPreparePlayer(screen, video, token) {
   }
 
   function fail(message) {
-    loading.hidden = true;
+    loading.hidden = false;
+    loading.querySelector("span:last-child").textContent = "Can't load this video — tap Retry";
     retry.hidden = false;
-    toast(message);
+    surface.querySelector(".prepare-error")?.remove();
+    surface.querySelector(".prepare-overlay").append(
+      h("div", { class: "prepare-error", text: message }),
+    );
   }
 
   start();

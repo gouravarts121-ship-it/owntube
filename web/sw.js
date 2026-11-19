@@ -1,6 +1,6 @@
-const CACHE = "owntube-v16";
+const CACHE = "owntube-v17";
 const MEDIA_CACHE = "owntube-media-v1";
-const ASSETS = ["/", "/style.css?v=16", "/app.js?v=16", "/hls.min.js", "/icon.svg", "/manifest.webmanifest"];
+const ASSETS = ["/", "/style.css?v=17", "/app.js?v=17", "/hls.min.js", "/icon.svg", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -22,6 +22,11 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET" || url.pathname.startsWith("/api/")) return;
   if (url.origin !== location.origin) return;
+
+  if (/\.(?:m3u8|ts)$/.test(url.pathname)) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
 
   if (url.pathname.startsWith("/media/")) {
     event.respondWith((async () => {

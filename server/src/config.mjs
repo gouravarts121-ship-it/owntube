@@ -23,6 +23,7 @@ export const config = {
   youtubeApiBase: (env.YOUTUBE_API_BASE || "https://www.googleapis.com/youtube/v3").replace(/\/+$/, ""),
   youtubeRegion: (env.YOUTUBE_REGION || "US").toUpperCase(),
   ytdlp: env.YTDLP || "yt-dlp",
+  ytdlpCookies: env.YTDLP_COOKIES || "",
   ytdlpMaxHeight: Number(env.YTDLP_MAX_HEIGHT || 360),
   ytdlpMaxBytes: env.YTDLP_MAX_BYTES || "200M",
   ytdlpTimeoutMs: Number(env.YTDLP_TIMEOUT_SECONDS || 300) * 1000,
