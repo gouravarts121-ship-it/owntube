@@ -225,7 +225,7 @@ object PlaybackHub {
         if (c.isPlaying) c.pause() else c.play()
     }
 
-    fun setAudioOnly(enabled: Boolean) {
+    fun applyAudioOnly(enabled: Boolean) {
         audioOnly = enabled
         val c = controller ?: return
         c.trackSelectionParameters = c.trackSelectionParameters.buildUpon()

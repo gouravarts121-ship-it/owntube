@@ -389,7 +389,7 @@ fun PlayerScreen(
                     label = "Audio",
                     icon = { tint -> Icon(Icons.Filled.Audiotrack, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp)) },
                     selected = PlaybackHub.audioOnly,
-                    onClick = { PlaybackHub.setAudioOnly(!PlaybackHub.audioOnly) },
+                    onClick = { PlaybackHub.applyAudioOnly(!PlaybackHub.audioOnly) },
                 )
                 ActionPill(
                     label = "Autoplay",
